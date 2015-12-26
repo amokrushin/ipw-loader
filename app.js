@@ -4,7 +4,7 @@ var async = require( 'async' ),
     request = require( 'request' ),
     jwt = require( 'jsonwebtoken' ),
     spawn = require( 'cross-spawn-async' ),
-    fork = require( 'child_process' ).fork,
+    child = require( 'child_process' ),
     logger = require( './lib/logger' ),
     config = require( './config.json' ),
     uuid = require( 'node-uuid' ).v1(),
@@ -47,7 +47,7 @@ function ipwVersion( callback ) {
         stderr += data;
     } );
     process.on( 'close', function() {
-        if( stderr ) return callback( stderr );
+        if( stderr ) logger.error( stderr );
         try
         {
             var list = JSON.parse( stdout );
@@ -73,14 +73,14 @@ function ipwInstall( ver, callback ) {
         stderr += data;
     } );
     process.on( 'close', function() {
-        if( stderr ) return callback( stderr );
+        if( stderr ) logger.error( stderr );
         callback( null, stdout );
     } );
 }
 
 function forkIpw( settings ) {
     logger.info( 'Fork Image processing worker...' );
-    var ipw = fork( './node_modules/ipw/app.js' );
+    var ipw = child.fork( './node_modules/ipw/app.js' );
     ipw.send( {
         msg: 'uuid',
         content: uuid
@@ -97,8 +97,16 @@ function ipwUpdate( requiredVersion, callback ) {
     ipwVersion( function( err, installedVersion ) {
         if( err ) return callback( err );
         if( installedVersion === requiredVersion ) return callback();
-        logger.info( 'Image processing worker v' + installedVersion + ', required v' + requiredVersion );
-        logger.info( 'Image processing worker updating...' );
+        if( !installedVersion )
+        {
+            logger.info( 'Image processing worker is not installed, required v' + requiredVersion );
+            logger.info( 'Image processing worker installing...' );
+        }
+        else
+        {
+            logger.info( 'Image processing worker v' + installedVersion + ', required v' + requiredVersion );
+            logger.info( 'Image processing worker updating...' );
+        }
         ipwInstall( requiredVersion, function( err ) {
             if( err ) return callback( err );
             logger.info( 'Image processing worker v' + requiredVersion + ' installed' );
