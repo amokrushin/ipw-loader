@@ -80,12 +80,12 @@ function ipwInstall( ver, callback ) {
     } );
 }
 
-function forkIpw( settings ) {
+function forkIpw( config, settings ) {
     logger.info( 'Fork Image processing worker...' );
     var ipw = child.fork( './node_modules/ipw/app.js' );
     ipw.send( {
         msg: 'uuid',
-        content: uuid
+        content: config.uuid
     } );
     ipw.send( {
         msg: 'settings',
@@ -130,7 +130,7 @@ function startIpw( config ) {
         }
     ], function( err, settings ) {
         if( err ) return logger.error( err );
-        var ipw = forkIpw( settings );
+        var ipw = forkIpw( config, settings );
         ipw.on( 'exit', function() {
             if( !sigInt ) startIpw( config );
         } );
