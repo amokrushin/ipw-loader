@@ -6,11 +6,13 @@ var async = require( 'async' ),
     spawn = require( 'cross-spawn-async' ),
     child = require( 'child_process' ),
     logger = require( './lib/logger' ),
-    config = require( './config.json' ),
-    uuid = require( 'node-uuid' ).v1(),
+    nconf = require( 'nconf' ),
+    uuid = require( 'node-uuid' ),
     sigInt = false;
 
-function requestSettings( callback ) {
+nconf.file( {file: 'config.json'} );
+
+function requestSettings( config, callback ) {
     async.waterfall( [
         function( callback ) {
             var apiKeyId = config.apiKey.slice( 0, 40 ),
@@ -115,9 +117,9 @@ function ipwUpdate( requiredVersion, callback ) {
     } );
 }
 
-function startIpw() {
+function startIpw( config ) {
     async.waterfall( [
-        requestSettings,
+        async.apply( requestSettings, config ),
         function( settings, callback ) {
             var requiredVersion = settings.ipw.version;
             if( !requiredVersion ) return callback( 'required IPW version is not defined' );
@@ -127,10 +129,10 @@ function startIpw() {
             } )
         }
     ], function( err, settings ) {
-        if( err ) return console.error( err );
+        if( err ) return logger.error( err );
         var ipw = forkIpw( settings );
         ipw.on( 'exit', function() {
-            if( !sigInt ) startIpw();
+            if( !sigInt ) startIpw( config );
         } );
     } );
 }
@@ -144,4 +146,14 @@ process.once( 'SIGINT', function() {
     }, 1000 );
 } );
 
-startIpw();
+async.waterfall( [
+    nconf.load.bind( nconf ),
+    function( config, callback ) {
+        if( !config.uuid ) nconf.set( 'uuid', uuid.v1() );
+        nconf.save( function( err ) {
+            if( err ) return logger.error( err );
+            callback( null, config );
+        } );
+    },
+    startIpw
+] );
